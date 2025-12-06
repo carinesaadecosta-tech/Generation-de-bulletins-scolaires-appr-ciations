@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Trash2, Wand2, Download, BookOpen, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, FileText } from 'lucide-react';
+import { Plus, Trash2, Wand2, Download, BookOpen, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, FileText, HelpCircle } from 'lucide-react';
 import { generateAppreciations } from './services/geminiService';
 import { Student, Gender, Level, Behavior, Investment, GeneratedResponseItem } from './types';
 import { Tooltip } from './components/Tooltip';
@@ -119,6 +119,32 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const ws = utils.json_to_sheet([
+        { 
+            'Prénom': 'Jean', 
+            'Genre': 'Garçon', 
+            'Niveau': 'Bon', 
+            'Comportement': 'Agréable', 
+            'Investissement': 'Sérieux et régulier', 
+            'Compétences': 'Calcul mental', 
+            'Conseils': 'Continuer ainsi' 
+        },
+        { 
+            'Prénom': 'Marie', 
+            'Genre': 'Fille', 
+            'Niveau': 'Excellent', 
+            'Comportement': 'Exemplaire', 
+            'Investissement': 'Sérieux et régulier', 
+            'Compétences': '', 
+            'Conseils': '' 
+        }
+    ]);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Modèle");
+    writeFile(wb, "Modele_Import_Eleves.xlsx");
+  };
+
   // --- Excel Export Logic ---
   const handleExportExcel = () => {
     const studentsWithComments = students.filter(s => s.generatedComment);
@@ -127,8 +153,13 @@ const App: React.FC = () => {
 
     const dataToExport = studentsWithComments.map(s => ({
         'Prénom': s.name,
-        'Matière': subject,
+        'Genre': s.gender,
         'Niveau': s.level,
+        'Comportement': s.behavior,
+        'Investissement': s.investment,
+        'Points Forts': s.skills,
+        'Conseils': s.advice,
+        'Matière': subject,
         'Appréciation': s.generatedComment
     }));
 
@@ -136,16 +167,12 @@ const App: React.FC = () => {
     const wb = utils.book_new();
     utils.book_append_sheet(wb, ws, "Appréciations");
     
-    // Auto-width for columns (rough estimate)
-    const maxNameLength = Math.max(...dataToExport.map(d => d['Prénom'].length), 10);
-    const maxCommentLength = Math.max(...dataToExport.map(d => (d['Appréciation'] || '').length), 20);
-    
-    ws['!cols'] = [
-        { wch: maxNameLength + 2 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: Math.min(maxCommentLength, 100) } // Cap width for readability
-    ];
+    // Auto-width for columns
+    const wscols = Object.keys(dataToExport[0]).map(key => ({ wch: 20 }));
+    // Adjust specific columns
+    wscols[0] = { wch: 15 }; // Name
+    wscols[8] = { wch: 80 }; // Appréciation
+    ws['!cols'] = wscols;
 
     writeFile(wb, `Bulletins_${subject.replace(/\s+/g, '_')}.xlsx`);
   };
@@ -159,7 +186,8 @@ const App: React.FC = () => {
 
     // Title
     doc.setFontSize(18);
-    doc.text(`Bulletins - ${subject}`, 14, 20);
+    doc.setTextColor(40);
+    doc.text(`Bulletins Scolaires - ${subject}`, 14, 20);
     
     // Date
     doc.setFontSize(10);
@@ -170,22 +198,25 @@ const App: React.FC = () => {
     const tableData = studentsWithComments.map(s => [
         s.name,
         s.level,
+        s.behavior,
         s.generatedComment || ''
     ]);
 
     // Generate Table
     autoTable(doc, {
         startY: 35,
-        head: [['Prénom', 'Niveau', 'Appréciation']],
+        head: [['Prénom', 'Niveau', 'Comportement', 'Appréciation']],
         body: tableData,
         headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
         columnStyles: {
-            0: { cellWidth: 40 }, // Prénom
-            1: { cellWidth: 30 }, // Niveau
-            2: { cellWidth: 'auto' } // Appréciation
+            0: { cellWidth: 30 }, // Prénom
+            1: { cellWidth: 25 }, // Niveau
+            2: { cellWidth: 35 }, // Comportement
+            3: { cellWidth: 'auto' } // Appréciation
         },
         styles: { 
             font: "helvetica",
+            fontSize: 10,
             overflow: 'linebreak',
             cellPadding: 4
         },
@@ -296,11 +327,20 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
         {/* Intro / Instructions */}
-        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-sm text-indigo-900">
+        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-sm text-indigo-900 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <p>
-            Remplissez le tableau ci-dessous ou importez une liste Excel. 
-            L'intelligence artificielle rédigera des appréciations complètes, bienveillantes et personnalisées.
+            Remplissez le tableau ci-dessous manuellement ou importez une liste Excel. 
+            L'IA rédigera des appréciations complètes et bienveillantes.
           </p>
+          <div className="flex gap-2">
+            <button
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-2 text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+            >
+                <Download className="w-3 h-3" />
+                Télécharger un modèle Excel
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -313,14 +353,14 @@ const App: React.FC = () => {
         {/* Input Table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="p-4 min-w-[150px]">Prénom</th>
+                  <th className="p-4 w-[150px]">Prénom</th>
                   <th className="p-4 w-[100px]">Genre</th>
-                  <th className="p-4 min-w-[140px]">Niveau</th>
-                  <th className="p-4 min-w-[200px]">Comportement</th>
-                  <th className="p-4 min-w-[140px]">Investissement</th>
+                  <th className="p-4 w-[140px]">Niveau</th>
+                  <th className="p-4 w-[220px]">Comportement</th>
+                  <th className="p-4 w-[160px]">Investissement</th>
                   <th className="p-4 min-w-[200px]">Points forts / Compétences</th>
                   <th className="p-4 min-w-[200px]">Conseils / À améliorer</th>
                   <th className="p-4 w-[50px]"></th>
@@ -360,7 +400,8 @@ const App: React.FC = () => {
                         <select
                         value={student.behavior}
                         onChange={(e) => updateStudent(student.id, 'behavior', e.target.value as Behavior)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm focus:border-indigo-500 outline-none"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm focus:border-indigo-500 outline-none truncate"
+                        title={student.behavior}
                       >
                         {Object.values(Behavior).map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
@@ -369,7 +410,7 @@ const App: React.FC = () => {
                         <select
                         value={student.investment}
                         onChange={(e) => updateStudent(student.id, 'investment', e.target.value as Investment)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm focus:border-indigo-500 outline-none"
+                        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm focus:border-indigo-500 outline-none truncate"
                       >
                         {Object.values(Investment).map(i => <option key={i} value={i}>{i}</option>)}
                       </select>
@@ -431,19 +472,22 @@ const App: React.FC = () => {
         {/* Results Section */}
         <div ref={resultsRef} className="space-y-4">
             {(hasResults) && (
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h2 className="text-xl font-bold text-slate-800">Appréciations Générées</h2>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        Appréciations Générées
+                    </h2>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                         <button
                             onClick={handleExportExcel}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-300 bg-white text-emerald-700 text-sm font-medium hover:bg-emerald-50 transition-all shadow-sm"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-white text-emerald-700 text-sm font-medium hover:bg-emerald-50 transition-all shadow-sm"
                         >
                             <FileSpreadsheet className="w-4 h-4" />
                             Exporter Excel
                         </button>
                         <button
                             onClick={handleExportPDF}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-300 bg-white text-red-700 text-sm font-medium hover:bg-red-50 transition-all shadow-sm"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-white text-red-700 text-sm font-medium hover:bg-red-50 transition-all shadow-sm"
                         >
                             <FileText className="w-4 h-4" />
                             Exporter PDF
@@ -460,9 +504,9 @@ const App: React.FC = () => {
                         <div className="flex justify-between items-start mb-3">
                             <div>
                                 <h3 className="font-bold text-slate-900">{student.name || 'Élève sans nom'}</h3>
-                                <div className="text-xs text-slate-500 flex gap-2 mt-1">
-                                    <span className="bg-slate-100 px-2 py-0.5 rounded">{student.level}</span>
-                                    <span className="bg-slate-100 px-2 py-0.5 rounded">{student.behavior}</span>
+                                <div className="text-xs text-slate-500 flex flex-wrap gap-2 mt-1">
+                                    <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">{student.level}</span>
+                                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">{student.behavior}</span>
                                 </div>
                             </div>
                             <Tooltip text="Copier">
