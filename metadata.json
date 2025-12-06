@@ -1,0 +1,5 @@
+{
+  "name": "Générateur de Bulletins Scolaires",
+  "description": "Une application pour aider les enseignants à rédiger automatiquement des appréciations personnalisées et encourageantes pour les bulletins scolaires, basées sur des critères prédéfinis.",
+  "requestFramePermissions": []
+}
