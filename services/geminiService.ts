@@ -1,16 +1,29 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Student, GeneratedResponseItem } from "../types";
 
-const apiKey = process.env.API_KEY;
-// Initialize the client outside the function to reuse it, assuming API_KEY doesn't change during session
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// Safe access to process.env to prevent "process is not defined" crashes in browser environments
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if process is not available
+  }
+  return undefined;
+};
+
+const apiKey = getApiKey();
+
+// Initialize the client only if we have a key, otherwise handle it in the function call
+const ai = apiKey ? new GoogleGenAI({ apiKey: apiKey }) : null;
 
 export const generateAppreciations = async (
   subject: string,
   students: Student[]
 ): Promise<GeneratedResponseItem[]> => {
-  if (!apiKey) {
-    throw new Error("Clé API manquante. Veuillez configurer votre clé API.");
+  if (!ai || !apiKey) {
+    throw new Error("Clé API manquante. Veuillez configurer votre clé API (process.env.API_KEY).");
   }
 
   if (students.length === 0) {
